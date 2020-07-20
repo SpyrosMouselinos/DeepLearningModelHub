@@ -85,8 +85,8 @@ class DetReg(tf.keras.regularizers.Regularizer):
 make_keras_picklable()
 
 model = Sequential()
-model.add(Dense(units=50, activation='relu', kernel_constraint=ZeroDiagonalConstraint()))
-model.add(Dense(units=50, activation='relu', kernel_regularizer=DetReg()))
+model.add(Dense(units=10, activation='relu', kernel_constraint=ZeroDiagonalConstraint()))
+model.add(Dense(units=10, activation='relu', kernel_regularizer=DetReg()))
 model.add(Dense(units=3, activation='softmax'))
 model.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=['accuracy'])
 
