@@ -63,6 +63,9 @@ class ZeroDiagonalConstraint(Constraint):
         w = w - tf.linalg.diag(w)
         return w
 
+    def get_config(self):
+        return
+
 
 @tf.keras.utils.register_keras_serializable(package='MyPackage', name='DeterminantReg')
 class DetReg(tf.keras.regularizers.Regularizer):
@@ -74,7 +77,7 @@ class DetReg(tf.keras.regularizers.Regularizer):
     def __init__(self, thres=0.):
         self.thres = thres
 
-    def __call__(self, x):
+    def call(self, x):
         return tf.nn.relu(tf.linalg.det(x) - self.thres)
 
     def get_config(self):
