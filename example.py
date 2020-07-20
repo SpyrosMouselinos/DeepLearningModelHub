@@ -1,9 +1,11 @@
 import pymongo
 import pickle
 from sklearn import datasets
+import tensorflow as tf
 from tensorflow.keras.models import Sequential, Model
 from tensorflow.keras.layers import *
 from tensorflow.keras.callbacks import EarlyStopping
+from tensorflow.keras.constraints import Constraint
 from tensorflow.python.keras.layers import deserialize, serialize
 from tensorflow.python.keras.saving import saving_utils
 
@@ -16,7 +18,7 @@ X = iris.data
 Y = iris.target
 Y = Y.reshape(-1, 1)
 
-es = EarlyStopping(monitor='val_mae', patience=3, restore_best_weights=True)
+es = EarlyStopping(monitor='val_accuracy', patience=3, restore_best_weights=True)
 
 
 def unpack(tf_model, training_config, weights):
@@ -43,16 +45,52 @@ def make_keras_picklable():
     cls.__reduce__ = __reduce__
 
 
+@tf.keras.utils.register_keras_serializable(package='MyPackage', name='ZeroDiagonalConstraint')
+class ZeroDiagonalConstraint(Constraint):
+    """
+    Custom Implementation of the Zero diagonal Constraint
+    """
+
+    def __init__(self):
+        return
+
+    def call(self, w):
+        """
+        Return the 0 diag weight matrix
+        :param w: The weight matrix
+        :return: The constraint matrix
+        """
+        w = w - tf.linalg.diag(w)
+        return w
+
+
+@tf.keras.utils.register_keras_serializable(package='MyPackage', name='DeterminantReg')
+class DetReg(tf.keras.regularizers.Regularizer):
+    """
+        Regularizes the Determinant of a Weight Matrix to be less than <threshold>
+        so it can maintain properties of iterable methods for stability.
+    """
+
+    def __init__(self, thres=0.):
+        self.thres = thres
+
+    def __call__(self, x):
+        return tf.nn.relu(tf.linalg.det(x) - self.thres)
+
+    def get_config(self):
+        return {'thres': float(self.thres)}
+
+
 # Make all Tensorflow Models Picklable
 make_keras_picklable()
 
 model = Sequential()
-model.add(Dense(units=4, activation='relu'))
-model.add(Dense(units=4, activation='relu'))
-model.add(Dense(units=1))
-model.compile(optimizer='rmsprop', loss='mse', metrics=['mae'])
+model.add(Dense(units=50, activation='relu', kernel_constraint=ZeroDiagonalConstraint()))
+model.add(Dense(units=50, activation='relu', kernel_regularizer=DetReg()))
+model.add(Dense(units=3, activation='softmax'))
+model.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=['accuracy'])
 
-model.fit(X, Y, batch_size=1, epochs=10, validation_split=0.2,
+model.fit(X, Y, batch_size=1, epochs=10, validation_split=0.5,
           callbacks=[es])
 
 
