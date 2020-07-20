@@ -63,9 +63,6 @@ class ZeroDiagonalConstraint(Constraint):
         w = w - tf.linalg.diag(w)
         return w
 
-    def get_config(self):
-        return
-
 
 @tf.keras.utils.register_keras_serializable(package='MyPackage', name='DeterminantReg')
 class DetReg(tf.keras.regularizers.Regularizer):
@@ -97,7 +94,20 @@ model.fit(X, Y, batch_size=1, epochs=10, validation_split=0.5,
           callbacks=[es])
 
 
-def save_model_to_db(model, client, db, dbconn, model_name):
+def save_model_to_db(model: tf.keras.Sequential, client: str, db: str, dbconn: str, model_name: str,
+                     force_save: bool = False) -> None:
+    """
+    Saves a Model to the DB respecting the unique-key if force-save is False
+    else upserts the new value.
+
+    :param model: The Model Object to Save
+    :param client: The MGDB Client
+    :param db: The DB name
+    :param dbconn: THe DB Collection to connect to
+    :param model_name: The Name to give to the saved model
+    :param force_save: Whether to insert or upsert
+    :return:
+    """
     ### Pickle The Model
     pickled_model = pickle.dumps(model)
 
@@ -111,11 +121,27 @@ def save_model_to_db(model, client, db, dbconn, model_name):
     mycon = mydb[dbconn]
 
     ### Get Info
-    info = mycon.insert_one({'ModelName': model_name, 'ModelContent': pickled_model, 'ModelType': 'DNN'})
-    return info
+    if force_save is False:
+        _ = mycon.insert_one({'ModelName': model_name, 'ModelContent': pickled_model, 'ModelType': 'DNN'})
+    else:
+        try:
+            _ = mycon.insert_one({'ModelName': model_name, 'ModelContent': pickled_model, 'ModelType': 'DNN'})
+        except:
+            _ = mycon.replace_one({'ModelName': model_name},
+                                  {'ModelName': model_name, 'ModelContent': pickled_model, 'ModelType': 'DNN'},
+                                  upsert=True)
+    return
 
 
-def load_saved_model_from_db(model_name, client, db, dbconn):
+def load_saved_model_from_db(model_name: str, client: str, db: str, dbconn: str) -> tf.keras.Sequential:
+    """
+    Loads Pickled Model from DB
+    :param model_name: The model name to retrieve
+    :param client: The MGDB Client
+    :param db: The DB name
+    :param dbconn: THe DB Collection to connect to
+    :return: The Tf/Keras Model
+    """
     json_data = {}
     myclient = pymongo.MongoClient(client)
     mydb = myclient[db]
@@ -129,10 +155,10 @@ def load_saved_model_from_db(model_name, client, db, dbconn):
     return pickle.loads(pickled_model)
 
 
-details = save_model_to_db(model=model, client=CLIENT, db=DB, dbconn=DB2CONNECT,
-                           model_name='Test1')
+save_model_to_db(model=model, client=CLIENT, db=DB, dbconn=DB2CONNECT,
+                 model_name='Test1', force_save=True)
 
-print(f"Operation was: {'Successful' if details is not None else 'Failed'}")
+print('Operation was Successful')
 
 y_before_saving = model.predict(X)
 
